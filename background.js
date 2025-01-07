@@ -9,3 +9,4 @@ chrome.tabs.onUpdated.addListener((tabId, tab) => {
     });
   }
 });
+// this is backgroundjs
