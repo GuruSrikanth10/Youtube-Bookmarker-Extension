@@ -1,3 +1,4 @@
+// this is the content scriptjs
 (() => {
   let youtubeLeftControls, youtubePlayer;
   let currentVideo = "";
