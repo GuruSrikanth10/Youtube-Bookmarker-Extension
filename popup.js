@@ -1,3 +1,4 @@
+// update
 import { getActiveTabURL } from "./utils.js";
 
 const addNewBookmark = (bookmarks, bookmark) => {
