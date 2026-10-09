@@ -3,6 +3,10 @@
   let currentVideo = "";
   let currentVideoBookmarks = [];
 
+  const getVideoIdFromPage = () => {
+    return location.pathname === "/watch" ? new URLSearchParams(location.search).get("v") : null;
+  };
+
   const fetchBookmarks = () => {
     return new Promise((resolve) => {
       chrome.storage.sync.get([currentVideo], (obj) => {
@@ -61,7 +65,13 @@
     }
   });
 
-  newVideoLoaded();
+  // The background script only reports URL changes that happen after this script has loaded,
+  // so when a video is opened directly or the page is refreshed, read the video ID from the page.
+  currentVideo = getVideoIdFromPage();
+
+  if (currentVideo) {
+    newVideoLoaded();
+  }
 })();
 
 const getTime = t => {
