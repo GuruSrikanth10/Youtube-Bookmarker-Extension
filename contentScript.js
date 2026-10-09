@@ -32,6 +32,15 @@
     });
   };
 
+  const formatTime = (t) => {
+    const totalSeconds = Math.floor(t);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+  };
+
   const fetchBookmarks = async (videoId) => {
     const obj = await chrome.storage.sync.get([videoId]);
 
@@ -48,7 +57,7 @@
 
     const newBookmark = {
       time,
-      desc: "Bookmark at " + getTime(time),
+      desc: "Bookmark at " + formatTime(time),
     };
 
     await chrome.storage.sync.set({
@@ -121,10 +130,3 @@
     newVideoLoaded();
   }
 })();
-
-const getTime = t => {
-  var date = new Date(0);
-  date.setSeconds(t);
-
-  return date.toISOString().substr(11, 8);
-};
