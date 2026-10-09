@@ -124,6 +124,10 @@
     }
   });
 
+  // A copy of this script from before the extension was updated may have left its button behind.
+  // That button no longer works, so remove it; a working one is added below.
+  document.querySelectorAll(".bookmark-btn").forEach((button) => button.remove());
+
   // The background script only reports URL changes that happen after this script has loaded,
   // so when a video is opened directly or the page is refreshed, read the video ID from the page.
   currentVideo = getVideoIdFromPage();
