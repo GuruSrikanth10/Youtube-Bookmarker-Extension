@@ -1,5 +1,7 @@
-import { getActiveTabURL, getVideoId } from "./utils.js";
+import { getActiveTab, getVideoId } from "./utils.js";
 
+let activeTab;
+let currentVideo;
 let pendingDelete = Promise.resolve();
 
 const fetchBookmarks = async (videoId) => {
@@ -17,12 +19,10 @@ const addNewBookmark = (bookmarks, bookmark) => {
   bookmarkTitleElement.className = "bookmark-title";
   controlsElement.className = "bookmark-controls";
 
-  setBookmarkAttributes("play", onPlay, controlsElement);
-  setBookmarkAttributes("delete", onDelete, controlsElement);
+  setBookmarkAttributes("play", "Play", () => onPlay(bookmark), controlsElement);
+  setBookmarkAttributes("delete", "Delete", () => onDelete(bookmark), controlsElement);
 
-  newBookmarkElement.id = "bookmark-" + bookmark.time;
   newBookmarkElement.className = "bookmark";
-  newBookmarkElement.setAttribute("timestamp", bookmark.time);
 
   newBookmarkElement.appendChild(bookmarkTitleElement);
   newBookmarkElement.appendChild(controlsElement);
@@ -52,15 +52,12 @@ const showMessage = (text) => {
   messageElement.hidden = false;
 };
 
-const onPlay = async e => {
-  const bookmarkTime = Number(e.target.parentNode.parentNode.getAttribute("timestamp"));
-  const activeTab = await getActiveTabURL();
-
+const onPlay = async (bookmark) => {
   // Sending fails when the content script isn't running in the tab,
   // e.g. a YouTube tab that was opened before the extension was installed or updated.
   const played = await chrome.tabs.sendMessage(activeTab.id, {
     type: "PLAY",
-    value: bookmarkTime,
+    value: bookmark.time,
   }).catch(() => false);
 
   if (!played) {
@@ -68,7 +65,7 @@ const onPlay = async e => {
   }
 };
 
-const deleteBookmark = async (currentVideo, bookmarkTime) => {
+const deleteBookmark = async (bookmarkTime) => {
   // Read the saved list again instead of trusting an older copy, which can be missing recent bookmarks.
   const bookmarks = await fetchBookmarks(currentVideo);
   const remainingBookmarks = bookmarks.filter((b) => b.time !== bookmarkTime);
@@ -82,39 +79,41 @@ const deleteBookmark = async (currentVideo, bookmarkTime) => {
   viewBookmarks(remainingBookmarks);
 };
 
-const onDelete = async e => {
-  const bookmarkTime = Number(e.target.parentNode.parentNode.getAttribute("timestamp"));
-  const activeTab = await getActiveTabURL();
-  const currentVideo = getVideoId(activeTab.url);
-
+const onDelete = (bookmark) => {
   // Run deletes one at a time so that quick clicks can't overwrite each other's changes.
   pendingDelete = pendingDelete
-    .then(() => deleteBookmark(currentVideo, bookmarkTime))
+    .then(() => deleteBookmark(bookmark.time))
     .catch((error) => {
       console.error("Failed to delete bookmark:", error);
       showMessage("Couldn't delete the bookmark. Please try again.");
     });
 };
 
-const setBookmarkAttributes =  (src, eventListener, controlParentElement) => {
-  const controlElement = document.createElement("img");
+const setBookmarkAttributes = (src, label, eventListener, controlParentElement) => {
+  const controlElement = document.createElement("button");
+  const iconElement = document.createElement("img");
 
-  controlElement.src = "assets/" + src + ".png";
-  controlElement.title = src;
+  controlElement.type = "button";
+  controlElement.title = label;
   controlElement.addEventListener("click", eventListener);
+
+  iconElement.src = "assets/" + src + ".png";
+  iconElement.alt = label;
+
+  controlElement.appendChild(iconElement);
   controlParentElement.appendChild(controlElement);
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const activeTab = await getActiveTabURL();
-  const currentVideo = getVideoId(activeTab?.url);
+  activeTab = await getActiveTab();
+  currentVideo = getVideoId(activeTab?.url);
 
   if (currentVideo) {
     viewBookmarks(await fetchBookmarks(currentVideo));
   } else {
     const container = document.getElementsByClassName("container")[0];
 
-    container.innerHTML = '<div class="title">This is not a youtube video page.</div>';
+    container.innerHTML = '<div class="title">This is not a YouTube video page.</div>';
   }
 });
 
