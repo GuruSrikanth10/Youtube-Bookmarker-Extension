@@ -1,6 +1,5 @@
 (() => {
   let currentVideo = "";
-  let currentVideoBookmarks = [];
   let waitingForControls = false;
 
   const getVideoIdFromPage = () => {
@@ -53,7 +52,7 @@
       desc: "Bookmark at " + getTime(currentTime),
     };
 
-    currentVideoBookmarks = await fetchBookmarks();
+    const currentVideoBookmarks = await fetchBookmarks();
 
     chrome.storage.sync.set({
       [currentVideo]: JSON.stringify([...currentVideoBookmarks, newBookmark].sort((a, b) => a.time - b.time))
@@ -61,8 +60,6 @@
   };
 
   const newVideoLoaded = async () => {
-    currentVideoBookmarks = await fetchBookmarks();
-
     // YouTube builds the player after the page loads, so the controls may not exist yet.
     // If a call is already waiting for them, it will add the button.
     if (waitingForControls) {
@@ -99,11 +96,6 @@
       if (youtubePlayer) {
         youtubePlayer.currentTime = value;
       }
-    } else if ( type === "DELETE") {
-      currentVideoBookmarks = currentVideoBookmarks.filter((b) => b.time != value);
-      chrome.storage.sync.set({ [currentVideo]: JSON.stringify(currentVideoBookmarks) });
-
-      response(currentVideoBookmarks);
     }
   });
 

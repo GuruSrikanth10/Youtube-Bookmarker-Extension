@@ -1,5 +1,13 @@
 import { getActiveTabURL, getVideoId } from "./utils.js";
 
+let pendingDelete = Promise.resolve();
+
+const fetchBookmarks = async (videoId) => {
+  const data = await chrome.storage.sync.get([videoId]);
+
+  return data[videoId] ? JSON.parse(data[videoId]) : [];
+};
+
 const addNewBookmark = (bookmarks, bookmark) => {
   const bookmarkTitleElement = document.createElement("div");
   const controlsElement = document.createElement("div");
@@ -47,19 +55,29 @@ const onPlay = async e => {
   });
 };
 
+const deleteBookmark = async (currentVideo, bookmarkTime) => {
+  // Read the saved list again instead of trusting an older copy, which can be missing recent bookmarks.
+  const bookmarks = await fetchBookmarks(currentVideo);
+  const remainingBookmarks = bookmarks.filter((b) => b.time !== bookmarkTime);
+
+  if (remainingBookmarks.length > 0) {
+    await chrome.storage.sync.set({ [currentVideo]: JSON.stringify(remainingBookmarks) });
+  } else {
+    await chrome.storage.sync.remove(currentVideo);
+  }
+
+  viewBookmarks(remainingBookmarks);
+};
+
 const onDelete = async e => {
+  const bookmarkTime = Number(e.target.parentNode.parentNode.getAttribute("timestamp"));
   const activeTab = await getActiveTabURL();
-  const bookmarkTime = e.target.parentNode.parentNode.getAttribute("timestamp");
-  const bookmarkElementToDelete = document.getElementById(
-    "bookmark-" + bookmarkTime
-  );
+  const currentVideo = getVideoId(activeTab.url);
 
-  bookmarkElementToDelete.parentNode.removeChild(bookmarkElementToDelete);
-
-  chrome.tabs.sendMessage(activeTab.id, {
-    type: "DELETE",
-    value: bookmarkTime,
-  }, viewBookmarks);
+  // Run deletes one at a time so that quick clicks can't overwrite each other's changes.
+  pendingDelete = pendingDelete
+    .then(() => deleteBookmark(currentVideo, bookmarkTime))
+    .catch((error) => console.error("Failed to delete bookmark:", error));
 };
 
 const setBookmarkAttributes =  (src, eventListener, controlParentElement) => {
@@ -76,11 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const currentVideo = getVideoId(activeTab?.url);
 
   if (currentVideo) {
-    chrome.storage.sync.get([currentVideo], (data) => {
-      const currentVideoBookmarks = data[currentVideo] ? JSON.parse(data[currentVideo]) : [];
-
-      viewBookmarks(currentVideoBookmarks);
-    });
+    viewBookmarks(await fetchBookmarks(currentVideo));
   } else {
     const container = document.getElementsByClassName("container")[0];
 
