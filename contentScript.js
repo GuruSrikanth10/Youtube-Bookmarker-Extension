@@ -1,6 +1,7 @@
 (() => {
   let currentVideo = "";
   let waitingForControls = false;
+  let pendingSave = Promise.resolve();
 
   const getVideoIdFromPage = () => {
     return location.pathname === "/watch" ? new URLSearchParams(location.search).get("v") : null;
@@ -31,32 +32,45 @@
     });
   };
 
-  const fetchBookmarks = () => {
-    return new Promise((resolve) => {
-      chrome.storage.sync.get([currentVideo], (obj) => {
-        resolve(obj[currentVideo] ? JSON.parse(obj[currentVideo]) : []);
-      });
-    });
+  const fetchBookmarks = async (videoId) => {
+    const obj = await chrome.storage.sync.get([videoId]);
+
+    return obj[videoId] ? JSON.parse(obj[videoId]) : [];
   };
 
-  const addNewBookmarkEventHandler = async () => {
-    const youtubePlayer = getYoutubePlayer();
+  const saveBookmark = async (videoId, time) => {
+    const currentVideoBookmarks = await fetchBookmarks(videoId);
 
-    if (!youtubePlayer) {
+    // Clicking again before the video has moved (e.g. while it's paused) would add the same bookmark twice.
+    if (currentVideoBookmarks.some((b) => b.time === time)) {
       return;
     }
 
-    const currentTime = youtubePlayer.currentTime;
     const newBookmark = {
-      time: currentTime,
-      desc: "Bookmark at " + getTime(currentTime),
+      time,
+      desc: "Bookmark at " + getTime(time),
     };
 
-    const currentVideoBookmarks = await fetchBookmarks();
-
-    chrome.storage.sync.set({
-      [currentVideo]: JSON.stringify([...currentVideoBookmarks, newBookmark].sort((a, b) => a.time - b.time))
+    await chrome.storage.sync.set({
+      [videoId]: JSON.stringify([...currentVideoBookmarks, newBookmark].sort((a, b) => a.time - b.time))
     });
+  };
+
+  const addNewBookmarkEventHandler = () => {
+    const youtubePlayer = getYoutubePlayer();
+
+    if (!youtubePlayer || !currentVideo) {
+      return;
+    }
+
+    // Read the video and time now: by the time the save runs, the user may have moved on.
+    const videoId = currentVideo;
+    const currentTime = youtubePlayer.currentTime;
+
+    // Save one bookmark at a time so that quick clicks can't overwrite each other's changes.
+    pendingSave = pendingSave
+      .then(() => saveBookmark(videoId, currentTime))
+      .catch((error) => console.error("Failed to save bookmark:", error));
   };
 
   const newVideoLoaded = async () => {
