@@ -45,14 +45,27 @@ const viewBookmarks = (currentBookmarks=[]) => {
   return;
 };
 
+const showMessage = (text) => {
+  const messageElement = document.getElementById("message");
+
+  messageElement.textContent = text;
+  messageElement.hidden = false;
+};
+
 const onPlay = async e => {
-  const bookmarkTime = e.target.parentNode.parentNode.getAttribute("timestamp");
+  const bookmarkTime = Number(e.target.parentNode.parentNode.getAttribute("timestamp"));
   const activeTab = await getActiveTabURL();
 
-  chrome.tabs.sendMessage(activeTab.id, {
+  // Sending fails when the content script isn't running in the tab,
+  // e.g. a YouTube tab that was opened before the extension was installed or updated.
+  const played = await chrome.tabs.sendMessage(activeTab.id, {
     type: "PLAY",
     value: bookmarkTime,
-  });
+  }).catch(() => false);
+
+  if (!played) {
+    showMessage("Couldn't reach the video. Refresh the YouTube tab and try again.");
+  }
 };
 
 const deleteBookmark = async (currentVideo, bookmarkTime) => {
@@ -77,7 +90,10 @@ const onDelete = async e => {
   // Run deletes one at a time so that quick clicks can't overwrite each other's changes.
   pendingDelete = pendingDelete
     .then(() => deleteBookmark(currentVideo, bookmarkTime))
-    .catch((error) => console.error("Failed to delete bookmark:", error));
+    .catch((error) => {
+      console.error("Failed to delete bookmark:", error);
+      showMessage("Couldn't delete the bookmark. Please try again.");
+    });
 };
 
 const setBookmarkAttributes =  (src, eventListener, controlParentElement) => {

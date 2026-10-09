@@ -119,6 +119,8 @@
       if (youtubePlayer) {
         youtubePlayer.currentTime = value;
       }
+
+      response(Boolean(youtubePlayer));
     }
   });
 
